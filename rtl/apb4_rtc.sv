@@ -8,11 +8,7 @@
 // MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 // See the Mulan PSL v2 for more details.
 
-`include "register.sv"
-`include "clk_int_div.sv"
-`include "cdc_2phase.sv"
-`include "edge_det.sv"
-`include "rtc_define.sv"
+`include "rtc_define.svh"
 
 module apb4_rtc (
     apb4_if.slave apb4,

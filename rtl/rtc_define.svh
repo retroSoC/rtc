@@ -69,14 +69,4 @@
 `define RTC_PSCR_MIN_VAL {{(`RTC_PSCR_WIDTH-2){1'b0}}, 2'd2}
 // verilog_format: on
 
-interface rtc_if (
-    input logic rtc_clk_i,
-    input logic rtc_rst_n_i
-);
-  logic irq_o;
-
-  modport dut(input rtc_clk_i, input rtc_rst_n_i, output irq_o);
-  modport tb(input rtc_clk_i, input rtc_rst_n_i, input irq_o);
-endinterface
-
 `endif
