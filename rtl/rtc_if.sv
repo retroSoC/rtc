@@ -17,5 +17,3 @@ interface rtc_if (
   modport dut(input rtc_clk_i, input rtc_rst_n_i, output irq_o);
   modport tb(input rtc_clk_i, input rtc_rst_n_i, input irq_o);
 endinterface
-
-`endif
