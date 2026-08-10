@@ -3,7 +3,7 @@
   "sources": {
     "common": {
       "url": "https://github.com/retroSoC/common.git",
-      "revision": "16ee9a5cfdc1248f35f0993710e3cb89464c19d9",
+      "revision": "6c318bf06570a2d195afb1708853ee921a058e5c",
       "destination": "build/deps/common",
       "license": "MulanPSL-2.0"
     }
