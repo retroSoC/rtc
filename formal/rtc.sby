@@ -1,0 +1,13 @@
+[options]
+mode prove
+depth 48
+
+[engines]
+smtbmc bitwuzla
+
+[script]
+read -formal rtc_formal.v
+prep -top rtc_formal
+
+[files]
+build/formal-src/rtc_formal.v

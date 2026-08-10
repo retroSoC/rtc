@@ -1,24 +1,25 @@
 # RTC
 
-## Features
-* Programmable prescaler
-    * max division factor is up to 2^20
-    * can be changed ongoing
-* 32-bit programmable counter up rtc counter and alarm register
-* Register write-protected support
-* Register read-resynchronized support
-* Three maskable interrupt
-    * second interrupt
-    * overflow interrupt
-    * alarm interrupt
-* Static synchronous design
-* Full synthesizable
+RTC V2 is an APB4 real-time clock controller with an independent timekeeping
+clock domain. It provides a 64-bit Unix-epoch counter, 1/256-second resolution,
+two alarms, a periodic wake timer, smooth digital calibration, interrupts, and
+a dedicated wake request.
 
-FULL vision of datatsheet can be found in [datasheet.md](./doc/datasheet.md).
+The APB and RTC clocks may be asynchronous. Software submits bounded commands
+through one-entry Common asynchronous mailboxes; APB transfers never wait for
+the slow clock. Time reads use an explicit atomic snapshot.
 
-## Build and Test
-```bash
-make comp    # compile code with vcs
-make run     # compile and run test with vcs
-make wave    # open fsdb format waveform with verdi
+The register ABI is manually encoded in
+[`rtl/rtc_define.svh`](rtl/rtc_define.svh) and
+[`sw/include/rtc_regs.h`](sw/include/rtc_regs.h). Run `make register-check`
+whenever either definition changes.
+
+```sh
+make doctor
+make format-check register-check lint
+make test synth formal
 ```
+
+See [`doc/datasheet.md`](doc/datasheet.md) for the programming model and
+[`doc/integration.md`](doc/integration.md) for clock, reset, and wake-domain
+requirements.

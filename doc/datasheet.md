@@ -1,151 +1,64 @@
-## Datasheet
+# RTC V2 Datasheet
 
-### Overview
-The `rtc(real time clock)` IP is a fully parameterised soft IP to generate the real-time clock. The IP features an APB4 slave interface, fully compliant with the AMBA APB Protocol Specification v2.0.
+## Purpose
 
-### Feature
-* Programmable prescaler
-    * max division factor is up to 2^20
-    * can be changed ongoing
-* 32-bit programmable counter up rtc counter and alarm register
-* Register write-protected support
-* Register read-resynchronized support
-* Three maskable interrupt
-    * second interrupt
-    * overflow interrupt
-    * alarm interrupt
-* Static synchronous design
-* Full synthesizable
+RTC V2 is a binary timekeeping block for SoCs with an APB programming clock
+and an independent RTC source clock. Hardware stores seconds since the Unix
+epoch plus an 8-bit subsecond value. Calendar, timezone, daylight-saving, and
+leap-second policy remain software responsibilities.
 
-### Interface
-| port name | type        | description          |
-|:--------- |:------------|:---------------------|
-| apb4      | interface   | apb4 slave interface |
-| rtc ->    | interface   | rtc slave interface |
-| `rtc.rtc_clk_i` | input | rtc low speed clock input |
-| `rtc.rtc_rst_n_i` | input | rtc reset input |
+RTC V2 does not provide a crystal oscillator, battery switch, retention cells,
+tamper pins, or a power controller. Time is lost when `rtc_rst_n_i` is asserted.
 
-### Register
-| name | offset  | length | description |
-|:----:|:-------:|:-----: | :---------: |
-| [CTRL](#control-register) | 0x0 | 4 | control register |
-| [PSCR](#prescaler-register) | 0x4 | 4 | prescaler register |
-| [CNT](#counter-reigster) | 0x8 | 4 | counter register |
-| [ALRM](#alarm-reigster) | 0xC | 4 | alarm register |
-| [ISTA](#interrupt-state-reigster) | 0x10 | 4 | interrupt state register |
-| [SSTA](#system-state-reigster) | 0x14 | 4 | system state register |
+## Features
 
-#### Control Register
-| bit | access  | description |
-|:---:|:-------:| :---------: |
-| `[31:5]` | none | reserved |
-| `[4:4]` | RW | EN |
-| `[3:3]` | RW | OVIE |
-| `[2:2]` | RW | ALRMIE |
-| `[1:1]` | RW | SCIE |
-| `[0:0]` | RW | CMF |
+- 64-bit seconds and 1/256-second subsecond time;
+- programmable input cycles per second and smooth signed -488 to +488 ppm
+  correction;
+- two one-shot absolute alarms with subsecond comparison;
+- 32-bit periodic timer in 1/256-second units, one-shot or auto-reload;
+- sticky second, alarm, periodic, and overflow events;
+- independent interrupt and wake masks plus test injection;
+- explicit atomic snapshots and non-blocking APB-to-RTC commands;
+- strict APB4 alignment, mapping, direction, strobe, and value checks.
 
-reset value: `0x0000_0000`
+## Command Model
 
-* EN: the enable signal for rtc counting mode
-    * `EN = 1'b0`: rtc counting disabled
-    * `EN = 1'b1`: rtc counting enabled
+Software writes staging registers and then writes one opcode to `COMMAND`.
+`APPLY_CONFIG`, `SET_TIME`, `SNAPSHOT`, `CLEAR_EVENTS`, and `INJECT_EVENTS` are
+supported. `COMMAND_STATUS.BUSY` remains set until the RTC response returns.
+Software must use a bounded timeout because a stopped RTC clock cannot respond.
 
-* OVIE: the enable signal of overflow interrupt
-    * `OVIE = 1'b0`: overflow interrupt disabled
-    * `OVIE = 1'b1`: overflow interrupt enabled
+Changing `SECOND_CYCLES` while the RTC remains enabled is rejected. Disable the
+RTC, apply the new period, then enable it. An alarm that has fired is not
+re-armed by unrelated configuration writes; change its target or toggle its
+enable bit to arm it again.
 
-* ALRMIE: the enable signal of alarm interrupt
-    * `ALRMIE = 1'b0`: alarm interrupt disabled
-    * `ALRMIE = 1'b1`: alarm interrupt enabled
+## Register Map
 
-* SCIE: the enable signal of second interrupt
-    * `SCIE = 1'b0`: second interrupt disabled
-    * `SCIE = 1'b1`: second interrupt enabled
+| Offset | Name | Access | Description |
+| ---: | --- | --- | --- |
+| `0x000` | `CTRL` | RW | Staged enable |
+| `0x004` | `STATUS` | RO | Active, command, snapshot and link state |
+| `0x008` | `COMMAND` | WO | Submit one command opcode |
+| `0x00C` | `COMMAND_STATUS` | RO/RW1C | Busy, done, error, opcode and response |
+| `0x010..0x018` | `TIME_LOAD_*` | RW | Staged seconds and subsecond load value |
+| `0x01C..0x024` | `SNAPSHOT_*` | RO | Last coherent time snapshot |
+| `0x028` | `SECOND_CYCLES` | RW | RTC input clocks per second, minimum 256 |
+| `0x02C` | `CALIB_PPM` | RW | Signed smooth calibration |
+| `0x030..0x048` | `ALARM*` | RW | Two absolute compare values and enable bits |
+| `0x04C..0x050` | `PERIOD_*` | RW | Periodic timer reload and control |
+| `0x054` | `EVENT_RAW` | RO | Sticky raw event causes |
+| `0x058` | `EVENT_CLEAR` | WO | Staged event-clear mask |
+| `0x05C` | `EVENT_TEST` | WO | Staged event-test mask |
+| `0x060..0x064` | `INTR_*` | RW/RO | Interrupt mask and masked state |
+| `0x068..0x06C` | `WAKE_*` | RW/RO | Wake mask and wake reason |
+| `0x0F0` | `CLOCK_HZ` | RO | Nominal integrated RTC source frequency |
+| `0x0F4` | `IP_ID` | RO | ASCII `RTC2`, `0x52544332` |
+| `0x0F8` | `IP_VERSION` | RO | `0x00020000` |
+| `0x0FC` | `CAPABILITY` | RO | ABI, alarm count, subsecond width and features |
 
-* CMF: the configure mode flag
-    * `CMF = 1'b0`: exit the configuare mode
-    * `CMF = 1'b1`: enter the configuare mode
-
-#### Prescaler Register
-| bit | access  | description |
-|:---:|:-------:| :---------: |
-| `[31:20]` | none | reserved |
-| `[19:0]` | RW | PSCR |
-
-reset value: `0x0000_0002`
-
-* PSCR: the 20-bit prescaler value
-
-#### Counter Reigster
-| bit | access  | description |
-|:---:|:-------:| :---------: |
-| `[31:0]` | RW | CNT |
-
-reset value: `0x0000_0000`
-
-* CNT: the 32-bit programmable counter
-
-#### Alarm Reigster
-| bit | access  | description |
-|:---:|:-------:| :---------: |
-| `[31:0]` | RW | ALRM |
-
-reset value: `0x0000_0000`
-
-* ALRM: the 32-bit alarm register
-
-#### Interrupt State Reigster
-| bit | access  | description |
-|:---:|:-------:| :---------: |
-| `[31:3]` | none | reserved |
-| `[2:2]` | RC_W0 | OVIF |
-| `[1:1]` | RC_W0 | ALRMIF |
-| `[0:0]` | RC_W0 | SCIF |
-
-reset value: `0x0000_0000`
-
-* OVIF: the trigger flag of overflow interrupt
-    * `OVIF = 1'b0`: overflow interrupt flag no trigger
-    * `OVIF = 1'b1`: overflow interrupt flag trigger
-
-* ALRMIF: the trigger flag of alarm interrupt
-    * `ALRMIF = 1'b0`: alarm interrupt flag no trigger
-    * `ALRMIF = 1'b1`: alarm interrupt flag trigger
-
-* SCIF: the trigger flag of second interrupt
-    * `SCIF = 1'b0`: second interrupt flag no trigger
-    * `SCIF = 1'b1`: second interrupt flag trigger
-
-#### System State Reigster
-| bit | access  | description |
-|:---:|:-------:| :---------: |
-| `[31:2]` | none | reserved |
-| `[1:1]` | RO | LWOFF |
-| `[0:0]` | RO | RSYNF |
-
-reset value: `0x0000_0000`
-
-* LWOFF: the last write operation finished flag
-* RSYNF: the registers synchronized flag
-
-### Program Guide
-These registers can be accessed by 4-byte aligned read and write. C-like pseudocode:
-
-init operation:
-```c
-rtc.CTRL.CMF = 1       // enable the config mode
-rtc.PSCR = PSCR_32_bit // set the pscr value
-rtc.CNT = CNT_32_bit   // set the init counter value
-rtc.CTRL.CMF = 0       // disable the config mode
-rtc.CTRL.[EN, OVIE, ALRMIE, SCIE] = 1 // enable counter and interrupt
-```
-read operation:
-```c
-uint32_t val = rtc.CNT // get the cnt value
-```
-complete driver and test codes in [driver](../driver/) dir. 
-
-### Resoureces
-### References
-### Revision History
+Event bits 0 through 4 are second, alarm 0, alarm 1, periodic, and overflow.
+Event setting wins over clearing in the same RTC cycle. `irq_o` is synchronous
+to `apb4.pclk`; `wake_o` is an RTC-domain level that remains asserted while any
+enabled wake event is pending.
